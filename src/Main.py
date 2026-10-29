@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import json
 import re
 import gi
 import subprocess
@@ -812,14 +813,13 @@ class Application(Gtk.Application):
                 partition = Partition()
                 partition.name = part
                 partition.path = "/dev/" + part
-                for x in ["FSTYPE", "UUID", "SIZE", "LABEL", "MOUNTPOINT"]:
-                    output = self.run_command(["lsblk", "-rno", x, partition.path]).split("\n")[0]
-                    if output == None:
-                        continue
-                    partition.__setattr__(x.lower(), output.strip())
-                    partition.is_luks = (partition.fstype == "crypto_LUKS")
-                    partition.is_lvm = (partition.fstype == "LVM2_member")
-         
+                output = self.run_command(["lsblk", "-Jo", "FSTYPE,UUID,SIZE,LABEL,MOUNTPOINT", partition.path])
+                info = json.loads(output)["blockdevices"][0] if output else {}
+                for key in ["fstype", "uuid", "size", "label", "mountpoint"]:
+                    partition.__setattr__(key, (info.get(key) or "").strip())
+                partition.is_luks = (partition.fstype == "crypto_LUKS")
+                partition.is_lvm = (partition.fstype == "LVM2_member")
+
                 partitions.append(partition)
 
         partitions = self.get_operating_system(partitions)
