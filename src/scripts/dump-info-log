@@ -7,23 +7,36 @@ if [[ "$1" == "" ]] ; then
 fi
 /usr/bin/pardus-mount-rootfs
 
+# Debian 12 and newer don't install rsyslog, most logs are only in the journal
+JOURNALDIR=$(mktemp -d)
+if [[ -d "$DESTDIR"/var/log/journal ]] ; then
+    journalctl --directory="$DESTDIR"/var/log/journal -b -1 --no-pager > "$JOURNALDIR"/journal-previous-boot.log 2>/dev/null || rm -f "$JOURNALDIR"/journal-previous-boot.log
+    journalctl --directory="$DESTDIR"/var/log/journal -b -0 --no-pager > "$JOURNALDIR"/journal-last-boot.log 2>/dev/null || rm -f "$JOURNALDIR"/journal-last-boot.log
+fi
+
 zip "$target/system-log" \
     "$DESTDIR"/var/log/auth.log \
     "$DESTDIR"/var/log/boot.log \
     "$DESTDIR"/var/log/daemon.log \
-    "$DESTDIR"/var/log/dmesg.log \
+    "$DESTDIR"/var/log/dmesg \
     "$DESTDIR"/var/log/dpkg.log \
     "$DESTDIR"/var/log/kern.log \
-    "$DESTDIR"/var/log/syslog.log \
+    "$DESTDIR"/var/log/syslog \
     "$DESTDIR"/var/log/user.log \
     "$DESTDIR"/var/log/pardus-installer.log \
     "$DESTDIR"/etc/hosts \
     "$DESTDIR"/etc/apt/sources.list \
     "$DESTDIR"/etc/apt/sources.list.d/* \
-    "$DESTDIR"/var/log/auth.log \
     "$DESTDIR"/var/log/Xorg.0.log \
     "$DESTDIR"/var/lib/dpkg/status \
     "$DESTDIR"/var/log/lightdm/lightdm.log \
     "$DESTDIR"/var/log/apt/*.log \
-    "$DESTDIR"/var/log/lightdm/lightdm.log \
-    "$DESTDIR"/boot/grub/grub.cfg
+    "$DESTDIR"/boot/grub/grub.cfg \
+    "$JOURNALDIR"/*.log
+status=$?
+chown --reference="$target" "$target/system-log.zip" 2>/dev/null
+
+rm -rf "$JOURNALDIR"
+umount -R "$DESTDIR" 2>/dev/null || umount -lf "$DESTDIR"
+rmdir "$DESTDIR"
+exit $status
